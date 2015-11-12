@@ -1,35 +1,22 @@
-//Run this file with "node server.js"
-//var express    = require('express');
-//var app        = express();
 var http       = require('http');
 var fs = require('fs');
-//var io         = require('socket.io')(http);
 var serialport = require('serialport');
-//var path     = require('path');
 var exec       = require('child_process').exec;
 var SerialPort = serialport.SerialPort;
 var serial;
 
-var dbPath = './db.json';
-//When a request come into the server for / give the client the file index.html
-//app.use(express.static(path.join(__dirname, '../webapp')));
-
-//Listen for incoming connections
-//http.Server(app).listen(3000, function(){console.log("listening on port 3000");});
-
 //When the serial port is successfully opened...
-
-var servos = [{name: "topServo", showId: undefined, currentPercentage: 0.00},
-    {name: "bottomServo", showId: undefined, currentPercentage: 0.00}];
-
 var onSerialOpen = function()
 {
-    loadDB();
+    //initialize our servos with data from our db or with the default structure
+    var servos = db.load() ||
+        [{name: "topServo", showId: undefined, currentPercentage: 0.00},
+        {name: "bottomServo", showId: undefined, currentPercentage: 0.00}];
+
     console.log("opened serial port");
     //When we get data from the serial port...
     serial.on('data', function(message)
     {
-
         //the message comes with a trailing space from the arduino...
         message = message.trim();
         console.log("From Arduino: ", message);
@@ -38,27 +25,24 @@ var onSerialOpen = function()
         if (message.indexOf('{{update}}') === 0) {
             var updateMsg = message.split(',');
             var servoName = updateMsg[1];
-            //var currentPosition = parseFloat(updateMsg[2]);
-            //console.log(currentPosition);
 
             var servoToUpdate = servos.filter(function(servo) {
                 return servo.name === servoName;
             })[0];
 
-
             var updatedPercentage = traktInterface.getProgressBar(servoToUpdate.showId);
-
             if (updatedPercentage === servoToUpdate.currentPercentage) {
                 return;
             }
 
             var dir = updatedPercentage > servoToUpdate.currentPercentage ? '0' : '180';
 
-            //the bottom servo has its direction inverted because of its position in the box
+            //the bottom servo has its direction inverted because of its placement in the box
             if (servoName === 'bottomServo') {
                 dir = dir === '180' ? '0' : '180';
             }
 
+            //send the updated configuration to the arduino
             serial.write(servoName + ',' + servoToUpdate.showId + ',' + dir + ',' +
                 Math.abs(servoToUpdate.currentPercentage - updatedPercentage));
 
@@ -67,8 +51,6 @@ var onSerialOpen = function()
         } else {
             var showId = message;
         }
-
-
 
         //check if we need to clear a current tracked show
         var servoToClear = servos.filter(function(servo) {
@@ -80,29 +62,30 @@ var onSerialOpen = function()
             var dir = servoToClear.name === 'topServo' ? '180' : '0';
             console.log("Sent: " + servoToClear.name + ',' + servoToClear.showId + ',' + dir +
                 ',' + servoToClear.currentPercentage);
+
+            //reset the servo position in the arduino
             serial.write(servoToClear.name + ','
                 + servoToClear.showId + ',' + dir + ','
                 + servoToClear.currentPercentage);
 
             servoToClear.currentPercentage = 0.00;
             servoToClear.showId = undefined;
-            updateDB();
+            db.update(servos);
             return;
         }
 
         //if there was no servo to clear it means we have to set one to track
-        //the provided show
+        //the provided show id
 
-
-        //get a free servo (undefined showId)
-        var freeServo = servos.filter(function(servo){
+        //get an available servo (undefined showId)
+        var availableServo = servos.filter(function(servo){
             return !servo.showId;
         })[0];
 
 
         //this only happens if an user tries to set a third show while 2 are
         //already being tracked
-        if (!freeServo) {
+        if (!availableServo) {
             console.log('All the servos are being used!');
             return;
         }
@@ -114,51 +97,58 @@ var onSerialOpen = function()
         }
 
         //set up the servo
-        freeServo.showId = showId;
-        freeServo.currentPercentage = progress;
+        availableServo.showId = showId;
+        availableServo.currentPercentage = progress;
 
-        var dir = freeServo.name === 'topServo' ? '0' : '180';
-        console.log("Sent: " + freeServo.name + ',' + freeServo.showId + ',' + dir +',' + freeServo.currentPercentage);
-        serial.write(freeServo.name + ',' + freeServo.showId + ',' + dir +',' + freeServo.currentPercentage);
-        updateDB();
+        var dir = availableServo.name === 'topServo' ? '0' : '180';
+
+        console.log("Sent: " + availableServo.name + ',' +
+            availableServo.showId + ',' + dir + ',' +
+            availableServo.currentPercentage);
+
+        //send the right configuration to the arduino
+        serial.write(availableServo.name + ',' +
+            availableServo.showId + ',' + dir + ',' +
+            availableServo.currentPercentage);
+
+        db.update(servos);
     });
 
 };
 
-exec('ls /dev/tty.usbmodem*', function(error, stdout, stderr) {
-  var devName = stdout.split('\n')[0];
-  //Hook up the serial port
-  serial = new SerialPort( devName, {parser: serialport.parsers.readline('\n')});
-  //When the serial port is successfully opened...
-  serial.on('open', onSerialOpen);
-});
+var db = (function() {
+    var dbPath = './db.json';
 
-var updateDB = function() {
-    writeData(dbPath, JSON.stringify(servos));
-};
+    var update = function(servos) {
+        writeData(dbPath, JSON.stringify(servos));
+    };
 
-var loadDB = function() {
-    var data = readData(dbPath);
-    if (data) {
-        servos = JSON.parse(data);
+    var load = function() {
+        var data = readData(dbPath);
+        return data ? JSON.parse(data) : false;
+    };
+
+    var writeData = function(filePath, text) {
+        fs.writeFile (filePath, text, function(err) {
+            if (err) throw err;
+        });
+    };
+
+    var readData = function(filePath) {
+        try {
+            fs.statSync(dbPath);
+            return fs.readFileSync(dbPath, 'utf8');
+        } catch (e) {
+            //db file not found, we'll create it when a tag is read.
+            return;
+        }
+    };
+
+    return {
+        load: load,
+        update: update
     }
-};
-
-var writeData = function(filePath, text) {
-    fs.writeFile (filePath, text, function(err) {
-        if (err) throw err;
-    });
-};
-
-var readData = function(filePath) {
-    try {
-        fs.statSync(dbPath);
-        return fs.readFileSync(dbPath, 'utf8');
-    } catch (e) {
-        //db file not found, we'll create it when a tag is read.
-        return;
-    }
-};
+})();
 
 var traktInterface = (function() {
     var traktKey = '1945c35153e6125c10a59941f5b381c8015baaacff136ba9fc27e7b009ff9def';
@@ -251,3 +241,11 @@ var traktInterface = (function() {
         }
     };
 })();
+
+exec('ls /dev/tty.usbmodem*', function(error, stdout, stderr) {
+  var devName = stdout.split('\n')[0];
+  //Hook up the serial port
+  serial = new SerialPort( devName, {parser: serialport.parsers.readline('\n')});
+  //When the serial port is successfully opened...
+  serial.on('open', onSerialOpen);
+});

@@ -12,39 +12,28 @@ NfcAdapter nfc = NfcAdapter(pn532_i2c);
 // means no motion.
 Servo topServo;
 int topServoZero = 89;
-//String topServoShowId = "undefined";
-//String topServoPosition = "0.00";
 
 Servo bottomServo;
 int bottomServoZero = 86;
-//String bottomServoShowId = "undefined";
-//String bottomServoPosition = "0.00";
 
 void setup(void) {
     Serial.begin(9600);
     Serial.println("NDEF Reader");
-    
+
     topServo.attach(9);
     bottomServo.attach(10);
-    
+
     topServo.write(topServoZero);
     bottomServo.write(bottomServoZero);
     nfc.begin();
 }
 
-
+//set up the servos according to the server message
 void setServo(String servoName, String showId, int dir, float percentage/*, String percentageString*/) {
 
     Servo currentServo = servoName == "topServo" ? topServo : bottomServo;
     int currentServoZero = servoName == "topServo" ? topServoZero : bottomServoZero;
-    //if (servoName == "topServo") {
-      //topServoShowId = showId;
-      //topServoPosition = percentageString;
-    //} else {
-      //bottomServoShowId = showId;
-      //bottomServoPosition = percentageString;
-    //}
-    
+
     currentServo.write(dir);
     delay(percentage * 2700);
     currentServo.write(currentServoZero);
@@ -54,23 +43,23 @@ String lastTag;
 long positionUpdateMillis = 0;
 
 void loop(void) {
-    
+
     //if we receive a message from the server, decode it and
     //change servo positions
     if (Serial.available() > 0) {
       String servoName  = Serial.readStringUntil(',');
-      
+
       String showId = Serial.readStringUntil(',');
-      
+
       String dirString = Serial.readStringUntil(',');
       int dir = atoi(dirString.c_str());
-      
+
       String percentageString  = Serial.readStringUntil('\0');
       float percentage = atof(percentageString.c_str());
-    
+
       setServo(servoName, showId, dir, percentage);//, percentageString);
     }
-    
+
     if (nfc.tagPresent(500))
     {
         //read the ndef record if a tag is present
@@ -79,7 +68,7 @@ void loop(void) {
         int payloadLength = record.getPayloadLength();
         byte payload[payloadLength];
         record.getPayload(payload);
-        
+
         String payloadStr = "";
 
         //the payload comes with the encoding in the first three
@@ -105,7 +94,6 @@ void loop(void) {
       Serial.println("{{update}},bottomServo");// + bottomServoPosition);
       positionUpdateMillis = millis();
     }
-    
+
     delay(500);
 }
-
