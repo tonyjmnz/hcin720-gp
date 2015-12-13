@@ -1,73 +1,118 @@
-/**
- * Includes
- */
-#include <Adafruit_CC3000.h>
-#include <SocketIOClient.h>
-#include <SPI.h>
-#include "utility/debug.h"
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_LSM303_U.h>
 
-/**
- * Network config
- */
-#define WLAN_SSID "rwk"
-#define WLAN_PASS "rochesteresunamierda"
-#define WLAN_SECURITY WLAN_SEC_WPA2
+/* Assign a unique ID to this sensor at the same time */
+Adafruit_LSM303_Mag_Unified mag = Adafruit_LSM303_Mag_Unified(12345);
 
-/**
- * Pins
- */
-#define ADAFRUIT_CC3000_IRQ   3
-#define ADAFRUIT_CC3000_VBAT  5
-#define ADAFRUIT_CC3000_CS    10
+//nfc
+#include <PN532_I2C.h>
+#include <PN532.h>
+#include <NfcAdapter.h>
 
-Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ, ADAFRUIT_CC3000_VBAT, SPI_CLOCK_DIV2); // you can change this clock speed
+PN532_I2C pn532_i2c(Wire);
+NfcAdapter nfc = NfcAdapter(pn532_i2c);
 
-SocketIOClient client;
-
-void ondata(SocketIOClient client, char *data) {
-  Serial.println(F("Incoming data!"));
-  Serial.println(data);
-  Serial.println(F("----------"));
-}
-
-void setup() {
+//end nfc
+void setup(void) 
+{
   Serial.begin(9600);
-  InitializeCC30000();
-
-  Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
-  client.setDataArrivedDelegate(ondata);
-  if (!client.connect(cc3000, "sandbox.carlosetejada.com", 80)) {
-    Serial.println(F("Not connected."));
-  }
-}
-
-void loop() {
-  client.monitor(cc3000);
-  client.sendEvent("info", "foobar");
-  delay(2000);
-}
-
-void InitializeCC30000(void){
-  // initialise the module
-  Serial.println(F("Initializing..."));
-
-  // initialize CC3000 chip
-  if (!cc3000.begin()) {
-    Serial.println(F("Couldn't begin()! Check your wiring?"));
+  
+  /* Enable auto-gain */
+  mag.enableAutoRange(true);
+  
+  /* Initialise the sensor */
+  if(!mag.begin())
+  {
+    /* There was a problem detecting the LSM303 ... check your connections */
+    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
     while(1);
   }
+  
+  nfc.begin();
+  pinMode(8, OUTPUT);
+  magnetOff();
+}
 
-  // optional SSID scan
-  if (!cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY)) {
-    Serial.println(F("Failed!"));
-    while(1);
+String lastTag;
+bool nfcState = true;
+bool magnetState = false;
+
+void magnetOn() {
+  digitalWrite(8, LOW);
+  nfcState = false;
+  magnetState = true;
+}
+
+void magnetOff() {
+  digitalWrite(8, HIGH);
+  nfcState = true;
+  magnetState = false;
+}
+
+void loop(void) 
+{
+  //if we receive a message from the server, it means we have to turn the nfc on
+  //and the magnetometer off
+  if (Serial.available() > 0) {
+    String buff = Serial.readString(); //clear the serial buffer
+    magnetOff();
   }
 
-  Serial.println(F("Connected!"));
+  if (nfcState && nfc.tagPresent(500))
+  {
+    
+    
+    //read the ndef record if a tag is present
+    NfcTag tag = nfc.read();
+    NdefRecord record = tag.getNdefMessage().getRecord(0);
+    int payloadLength = record.getPayloadLength();
+    byte payload[payloadLength];
+    record.getPayload(payload);
 
-  // wait for DHCP to complete
-  Serial.println(F("Request DHCP"));
-  while (!cc3000.checkDHCP()) {
-    delay(100);
-  }  
+    String payloadStr = "";
+
+    //the payload comes with the encoding in the first three
+    //charactersof the string, remove them
+    for (int pos = 3; pos < payloadLength; pos++)
+    {
+        payloadStr += (char)payload[pos];
+    }
+
+    //prevent reading the same tag over and over again
+    if (lastTag != payloadStr) {
+      //send the read tag id to the server via serial
+      
+      Serial.println(payloadStr);
+      lastTag = payloadStr;
+      magnetOn();
+    }
+  } else {
+    lastTag = "none";
+  }
+
+  if (magnetState) {
+    /* Get a new sensor event */ 
+    sensors_event_t event; 
+    mag.getEvent(&event);
+    char magXYZ[40] = "";
+    char tmp[10] = "";
+    
+    strcat(magXYZ, "{{mag}}|");
+    dtostrf(event.magnetic.x, 4, 2, tmp);
+    strcat(magXYZ, tmp);
+    strcat(magXYZ, ",");
+    strcpy(tmp, "");
+    dtostrf(event.magnetic.y, 4, 2, tmp);
+    strcat(magXYZ, tmp);
+    strcpy(tmp, "");
+    strcat(magXYZ, ",");
+    dtostrf(event.magnetic.z, 4, 2, tmp);
+    strcat(magXYZ, tmp);
+    strcpy(tmp, "");
+    
+    Serial.println(magXYZ);
+    strcpy(magXYZ, "");
+    delay(250);
+  }
 }
