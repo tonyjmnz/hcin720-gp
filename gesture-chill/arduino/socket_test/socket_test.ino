@@ -70,7 +70,7 @@ void loop(void)
     byte payload[payloadLength];
     record.getPayload(payload);
 
-    String payloadStr = "";
+    String payloadStr = "{{nfc}}|";
 
     //the payload comes with the encoding in the first three
     //charactersof the string, remove them
