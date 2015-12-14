@@ -24,7 +24,7 @@ var play = function(showId) {
     url: paused ? '/play' : '/playMedia',
     qs: getQueryString(showId)
   }, function (error, response, body) {
-    console.log(body);
+    //console.log(body);
     paused = false;
   });
 };
@@ -36,8 +36,8 @@ var pause = function(showId) {
     url: '/pause',
     qs: getQueryString(showId)
   }, function (error, response, body) {
-    console.log(body);
-    paused = true;
+    //console.log(body);
+    paused = !paused;
   });
 };
 
@@ -48,7 +48,7 @@ var stop = function(showId) {
     url: '/stop',
     qs: getQueryString(showId)
   }, function (error, response, body) {
-    console.log(body);
+    //console.log(body);
     paused = false;
   });
 };

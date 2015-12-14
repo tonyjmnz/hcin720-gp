@@ -42,7 +42,7 @@ var onSerialOpen = function()
       var point = toPoint(data.split(','));
 
       var gesture = magnetometer.analyzePoint(point);
-      console.log(gesture);
+      //console.log(gesture);
       if (gesture === 'stop') {
         plex.stop(showId);
         serial.write('nfc_on');
