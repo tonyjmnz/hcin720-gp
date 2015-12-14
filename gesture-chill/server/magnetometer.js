@@ -25,8 +25,7 @@ var analyzePoint = function(point) {
     gesturePoints.push([parseFloat(point.x, 2), parseFloat(point.y, 2)]);
   }
 
-
-  if (detectingGesture && quietCount >= 8) {
+  if (detectingGesture && quietCount >= 20) {
     detectingGesture = false;
     var gesture = analyzeGesture(gesturePoints);
     gesturePoints = [];

@@ -125,6 +125,6 @@ void loop(void)
     strcpy(magnetometerXYZ, "");
     
     //4hz sampling rate
-    delay(250);
+    delay(100);
   }
 }

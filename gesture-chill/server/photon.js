@@ -9,7 +9,7 @@ var makeRequest = function(command) {
       args: command
     }
   }, function (e, r, body) {
-    console.log(body);
+    //console.log(body);
   });
 };
 

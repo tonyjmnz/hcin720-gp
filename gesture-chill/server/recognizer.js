@@ -38,8 +38,10 @@ module.exports = {
     //console.log(data);
     var gesture = recognizer(data);
     if (knownGestures.indexOf(gesture.name) < 0) {
+      console.log('nomatch');
       return 'nomatch';
     }
+    console.log(gesture.name);
     return gesture.name;
   }
 };
