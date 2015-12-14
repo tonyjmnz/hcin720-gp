@@ -1,0 +1,16 @@
+{
+  "name": "gesture-chill",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "one-dollar": "^2.1.0",
+    "request": "^2.67.0",
+    "serialport": "^2.0.5"
+  }
+}
