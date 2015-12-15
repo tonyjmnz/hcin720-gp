@@ -79,3 +79,7 @@ stroke recognizer.
 ### Video
 Please find our demo video
 [here](https://www.youtube.com/watch?v=7oVUjyiay7o).
+
+### Paper
+Please find our final paper
+[here](https://github.com/tonyjmnz/hcin720-gp/blob/master/gesture-chill/documents/gesture-chill-paper.pdf)
